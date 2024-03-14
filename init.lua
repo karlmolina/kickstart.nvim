@@ -50,7 +50,7 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 -- is not what someone will guess without a bit more experience.
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
-vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+-- vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
 vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
@@ -82,6 +82,20 @@ vim.opt.rtp:prepend(lazypath)
 --    :Lazy
 --  You can press `?` in this menu for help. Use `:q` to close the window
 require('lazy').setup({
+  -- vim unimpaired
+  { 'tpope/vim-unimpaired', event = 'VimEnter' },
+  -- lazygit in nvim
+  {
+    'kdheepak/lazygit.nvim',
+    cmd = {
+      'LazyGit',
+      'LazyGitConfig',
+      'LazyGitCurrentFile',
+      'LazyGitFilter',
+      'LazyGitFilterCurrentFile',
+    },
+    config = function() end,
+  },
   -- copilot, find copilot in this file to see where its configured in cmp
   {
     'zbirenbaum/copilot-cmp',
@@ -109,15 +123,66 @@ require('lazy').setup({
   { 'numtostr/comment.nvim', opts = {} },
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
-    opts = {
-      signs = {
-        add = { text = '+' },
-        change = { text = '~' },
-        delete = { text = '_' },
-        topdelete = { text = '‾' },
-        changedelete = { text = '~' },
-      },
-    },
+    config = function()
+      require('gitsigns').setup {
+        on_attach = function(bufnr)
+          local gs = package.loaded.gitsigns
+
+          local function map(mode, l, r, opts)
+            opts = opts or {}
+            opts.buffer = bufnr
+            vim.keymap.set(mode, l, r, opts)
+          end
+
+          -- Navigation
+          -- map('n', ']c', function()
+          --   if vim.wo.diff then
+          --     return ']c'
+          --   end
+          --   vim.schedule(function()
+          --     gs.next_hunk()
+          --   end)
+          --   return '<Ignore>'
+          -- end, { expr = true })
+          --
+          -- map('n', '[c', function()
+          --   if vim.wo.diff then
+          --     return '[c'
+          --   end
+          --   vim.schedule(function()
+          --     gs.prev_hunk()
+          --   end)
+          --   return '<Ignore>'
+          -- end, { expr = true })
+
+          -- Actions
+          map('n', '<leader>hs', gs.stage_hunk, { desc = 'Stage hunk' })
+          map('n', '<leader>hr', gs.reset_hunk, { desc = 'Reset hunk' })
+          map('v', '<leader>hs', function()
+            gs.stage_hunk { vim.fn.line '.', vim.fn.line 'v' }
+          end, { desc = 'Stage hunk' })
+          map('v', '<leader>hr', function()
+            gs.reset_hunk { vim.fn.line '.', vim.fn.line 'v' }
+          end, { desc = 'Reset hunk' })
+          map('n', '<leader>hS', gs.stage_buffer, { desc = 'Stage buffer' })
+          map('n', '<leader>hu', gs.undo_stage_hunk, { desc = 'Undo stage hunk' })
+          map('n', '<leader>hR', gs.reset_buffer, { desc = 'Reset buffer' })
+          map('n', '<leader>hp', gs.preview_hunk, { desc = 'Preview hunk' })
+          map('n', '<leader>hb', function()
+            gs.blame_line { full = true }
+          end, { desc = 'Blame line' })
+          map('n', '<leader>tb', gs.toggle_current_line_blame, { desc = 'Toggle current line blame' })
+          map('n', '<leader>hd', gs.diffthis, { desc = 'Diff this' })
+          map('n', '<leader>hD', function()
+            gs.diffthis '~'
+          end, { desc = 'Diff this (cached)' })
+          map('n', '<leader>td', gs.toggle_deleted, { desc = 'Toggle deleted' })
+
+          -- Text object
+          map({ 'o', 'x' }, 'ih', ':<C-U>Gitsigns select_hunk<CR>', { desc = 'Select hunk' })
+        end,
+      }
+    end,
   },
   { -- Useful plugin to show you pending keybinds.
     'folke/which-key.nvim',
@@ -126,13 +191,11 @@ require('lazy').setup({
       require('which-key').setup()
       -- Document existing key chains
       require('which-key').register {
-        ['<leader>c'] = { name = 'Code', _ = 'which_key_ignore' },
-        ['<leader>d'] = { name = 'Document', _ = 'which_key_ignore' },
-        ['<leader>r'] = { name = 'Rename', _ = 'which_key_ignore' },
-        ['<leader>s'] = { name = 'Search', _ = 'which_key_ignore' },
         ['<leader>n'] = { name = 'Neovim', _ = 'which_key_ignore' },
-        ['<leader>t'] = { name = 'Telescope', _ = 'which_key_ignore' },
+        ['<leader>s'] = { name = 'Telescope', _ = 'which_key_ignore' },
         ['<leader>l'] = { name = 'LSP', _ = 'which_key_ignore' },
+        ['<leader>h'] = { name = 'Git', _ = 'which_key_ignore' },
+        ['<leader>t'] = { name = 'Toggle', _ = 'which_key_ignore' },
       }
     end,
   },
@@ -169,6 +232,11 @@ require('lazy').setup({
         defaults = {
           mappings = {
             i = { ['<c-enter>'] = 'to_fuzzy_refine' },
+            n = {
+              ['q'] = require('telescope.actions').delete_buffer,
+              ['<c-p>'] = require('telescope.actions').cycle_history_prev,
+              ['<c-n>'] = require('telescope.actions').cycle_history_next,
+            },
           },
         },
         -- pickers = {}
@@ -182,22 +250,22 @@ require('lazy').setup({
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
       -- See `:help telescope.builtin`
-      local builtin = require 'telescope.builtin'
-      vim.keymap.set('n', '<leader>th', builtin.help_tags, { desc = 'Search Help' })
-      vim.keymap.set('n', '<leader>tk', builtin.keymaps, { desc = 'Search Keymaps' })
-      vim.keymap.set('n', '<leader>tf', builtin.find_files, { desc = 'Search Files' })
-      vim.keymap.set('n', '<leader>ts', builtin.builtin, { desc = 'Search Select Telescope' })
-      vim.keymap.set('n', '<leader>tw', builtin.grep_string, { desc = 'Search current Word' })
-      vim.keymap.set('n', '<leader>tg', builtin.live_grep, { desc = 'Search by Grep' })
-      vim.keymap.set('n', '<leader>td', builtin.diagnostics, { desc = 'Search Diagnostics' })
-      vim.keymap.set('n', '<leader>tr', builtin.resume, { desc = 'Search Resume' })
-      vim.keymap.set('n', '<leader>t.', builtin.oldfiles, { desc = 'Search Recent Files' })
-      vim.keymap.set('n', '<leader>b', builtin.buffers, { desc = 'Find existing buffers' })
+      local telescope_builtin = require 'telescope.builtin'
+      vim.keymap.set('n', '<leader>sh', telescope_builtin.help_tags, { desc = 'Search Help' })
+      vim.keymap.set('n', '<leader>sk', telescope_builtin.keymaps, { desc = 'Search Keymaps' })
+      vim.keymap.set('n', '<leader>sf', telescope_builtin.find_files, { desc = 'Search Files' })
+      vim.keymap.set('n', '<leader>ss', telescope_builtin.builtin, { desc = 'Search Select Telescope' })
+      vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = 'Search current Word' })
+      vim.keymap.set('n', '<leader>s/', telescope_builtin.live_grep, { desc = 'Search by Grep' })
+      vim.keymap.set('n', '<leader>sd', telescope_builtin.diagnostics, { desc = 'Search Diagnostics' })
+      vim.keymap.set('n', '<leader>sr', telescope_builtin.resume, { desc = 'Search Resume' })
+      vim.keymap.set('n', '<leader>s.', telescope_builtin.oldfiles, { desc = 'Search Recent Files' })
+      vim.keymap.set('n', '<leader>a', telescope_builtin.buffers, { desc = 'Find existing buffers' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
         -- You can pass additional configuration to telescope to change theme, layout, etc.
-        builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
+        telescope_builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
           winblend = 10,
           previewer = false,
         })
@@ -205,8 +273,8 @@ require('lazy').setup({
 
       -- Also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
-      vim.keymap.set('n', '<leader>s/', function()
-        builtin.live_grep {
+      vim.keymap.set('n', '<leader>sg', function()
+        telescope_builtin.live_grep {
           grep_open_files = true,
           prompt_title = 'Live Grep in Open Files',
         }
@@ -214,7 +282,7 @@ require('lazy').setup({
 
       -- Shortcut for searching your neovim configuration files
       vim.keymap.set('n', '<leader>nf', function()
-        builtin.find_files { cwd = vim.fn.stdpath 'config' }
+        telescope_builtin.find_files { cwd = vim.fn.stdpath 'config' }
       end, { desc = 'Search neovim files' })
     end,
   },
@@ -240,31 +308,31 @@ require('lazy').setup({
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-T>.
-          map('gd', require('telescope.builtin').lsp_definitions, 'Goto Definition')
+          map('<leader>ld', require('telescope.builtin').lsp_definitions, 'Goto Definition')
 
           -- Find references for the word under your cursor.
-          map('gr', require('telescope.builtin').lsp_references, 'Goto References')
+          map('<leader>lr', require('telescope.builtin').lsp_references, 'Goto References')
 
           -- Jump to the implementation of the word under your cursor.
           --  Useful when your language has ways of declaring types without an actual implementation.
-          map('gI', require('telescope.builtin').lsp_implementations, 'Goto Implementation')
+          map('<leader>li', require('telescope.builtin').lsp_implementations, 'Goto Implementation')
 
           -- Jump to the type of the word under your cursor.
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
-          map('<leader>D', require('telescope.builtin').lsp_type_definitions, 'Type Definition')
+          map('<leader>lD', require('telescope.builtin').lsp_type_definitions, 'Type Definition')
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('<leader>ds', require('telescope.builtin').lsp_document_symbols, 'Document Symbols')
+          map('<leader>lb', require('telescope.builtin').lsp_document_symbols, 'Document Symbols')
 
           -- Fuzzy find all the symbols in your current workspace
           --  Similar to document symbols, except searches over your whole project.
-          map('<leader>sy', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'search workspace symbols')
+          map('<leader>ls', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'search workspace symbols')
 
           -- Rename the variable under your cursor
           --  Most Language Servers support renaming across files, etc.
-          map('<leader>rn', vim.lsp.buf.rename, 'Rename')
+          map('<leader>le', vim.lsp.buf.rename, 'Rename')
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
@@ -318,6 +386,7 @@ require('lazy').setup({
         -- clangd = {},
         -- gopls = {},
         pyright = {},
+        phpactor = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -325,8 +394,7 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`tsserver`) will work just fine
-        -- tsserver = {},
-        --
+        tsserver = {},
 
         lua_ls = {
           -- cmd = {...},
@@ -630,13 +698,21 @@ require('lazy').setup({
 -- vim: ts=2 sts=2 sw=2 et
 
 vim.keymap.set('n', '<leader>ne', [[:e ~/.config/nvim/init.lua<CR>]], { desc = 'Edit neovim config' })
-vim.keymap.set('n', '<leader>w', [[:w<CR>]], { desc = 'Write file' })
-vim.keymap.set('n', '<leader>q', [[:q<CR>]], { desc = 'Quit' })
--- set control p to write and close
-vim.keymap.set('n', '<C-p>', [[:w<CR>:q<CR>]], { desc = 'Write and close' })
+vim.keymap.set('n', '<leader>w', [[:wall<CR>]], { desc = 'Write all buffers' })
+vim.keymap.set('n', '<leader>q', [[:bdelete<CR>]], { desc = 'Close buffer' })
+-- set control p to write and closest
+vim.keymap.set('n', '<C-p>', [[:wqall<CR>]], { desc = 'Write and close' })
 vim.keymap.set('n', '<leader>f', [[:Telescope find_files<CR>]], { desc = 'Find files' })
 -- or just do *?
 vim.keymap.set('v', '/', [[y/\V<C-R>=escape(@",'/\')<CR><CR>]], { desc = 'Search selected text' })
 -- mouse wheel scroll speed
 vim.keymap.set('n', '<ScrollWheelUp>', '<C-y>', { desc = 'Scroll up' })
 vim.keymap.set('n', '<ScrollWheelDown>', '<C-e>', { desc = 'Scroll down' })
+vim.keymap.set('n', '<leader>nL', ':Lazy<CR>', { desc = 'Lazy plugin manager' })
+vim.keymap.set('n', '<leader>hg', '<cmd>LazyGit<CR>', { desc = 'LazyGit' })
+-- leader tab to switch to last buffer
+vim.keymap.set('n', '<leader><tab>', '<C-^>', { desc = 'Switch to last buffer' })
+-- shift tab to siwtch to previous buffer
+vim.keymap.set('n', '<S-Tab>', ':bprevious<CR>', { desc = 'Switch to previous buffer' })
+-- tab to switch to next buffer
+vim.keymap.set('n', '<Tab>', ':bnext<CR>', { desc = 'Switch to next buffer' })
