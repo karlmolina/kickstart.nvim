@@ -1,3 +1,4 @@
+> Moved to https://github.com/karlmolina/dotfiles
 # kickstart.nvim
 
 ## Introduction
