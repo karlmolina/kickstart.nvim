@@ -82,26 +82,63 @@ if not vim.loop.fs_stat(lazypath) then
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
 
--- [[ Configure and install plugins ]]
---  To check the current status of your plugins, run
---    :Lazy
---  You can press `?` in this menu for help. Use `:q` to close the window
 require('lazy').setup({
+  -- [[ Configure and install plugins ]]
+  {
+    'abecodes/tabout.nvim',
+    lazy = false,
+    config = function()
+      require('tabout').setup {
+        tabkey = '<C-l>', -- key to trigger tabout, set to an empty string to disable
+        backwards_tabkey = '<C-h>', -- key to trigger backwards tabout, set to an empty string to disable
+        act_as_tab = false, -- shift content if tab out is not possible
+        act_as_shift_tab = false, -- reverse shift content if tab out is not possible (if your keyboard/terminal supports <S-Tab>)
+        default_tab = '<C-t>', -- shift default action (only at the beginning of a line, otherwise <TAB> is used)
+        default_shift_tab = '<C-d>', -- reverse shift default action,
+        enable_backwards = true, -- well ...
+        completion = false, -- if the tabkey is used in a completion pum
+        tabouts = {
+          { open = "'", close = "'" },
+          { open = '"', close = '"' },
+          { open = '`', close = '`' },
+          { open = '(', close = ')' },
+          { open = '[', close = ']' },
+          { open = '{', close = '}' },
+        },
+        ignore_beginning = true, --[[ if the cursor is at the beginning of a filled element it will rather tab out than shift the content ]]
+        exclude = {}, -- tabout will ignore these filetypes
+      }
+    end,
+    requires = {
+      'nvim-treesitter/nvim-treesitter',
+      'L3MON4D3/LuaSnip',
+      'hrsh7th/nvim-cmp',
+    },
+    event = 'InsertCharPre', -- Set the event to 'InsertCharPre' for better compatibility
+    priority = 1000,
+  },
+  { 'ggandor/leap.nvim', lazy = false, config = function() end },
+  {
+    'mbbill/undotree',
+    config = function()
+      vim.keymap.set('n', '<leader>u', '<cmd>UndotreeToggle<CR>', { desc = 'Open undotree' })
+    end,
+  },
   { 'tpope/vim-repeat' },
   -- auto close parentheses and brackets
   { 'cohama/lexima.vim' },
   -- file explorer
-  {
-    'nvim-tree/nvim-tree.lua',
-    version = '*',
-    lazy = false,
-    dependencies = {
-      'nvim-tree/nvim-web-devicons',
-    },
-    config = function()
-      require('nvim-tree').setup {}
-    end,
-  },
+  -- {
+  --   'nvim-tree/nvim-tree.lua',
+  --   version = '*',
+  --   lazy = false,
+  --   dependencies = {
+  --     'nvim-tree/nvim-web-devicons',
+  --   },
+  --   config = function()
+  --     require('nvim-tree').setup {}
+  --   end,
+  -- },
   {
     'nvim-neo-tree/neo-tree.nvim',
     branch = 'v3.x',
@@ -114,6 +151,31 @@ require('lazy').setup({
     cmd = { 'Neotree' },
     init = function()
       vim.keymap.set('n', '<leader>e', '<cmd>Neotree toggle left reveal<CR>', { desc = 'Toggle file tree' })
+    end,
+    config = function()
+      -- If you want icons for diagnostic errors, you'll need to define them somewhere:
+      vim.fn.sign_define('DiagnosticSignError', { text = ' ', texthl = 'DiagnosticSignError' })
+      vim.fn.sign_define('DiagnosticSignWarn', { text = ' ', texthl = 'DiagnosticSignWarn' })
+      vim.fn.sign_define('DiagnosticSignInfo', { text = ' ', texthl = 'DiagnosticSignInfo' })
+      vim.fn.sign_define('DiagnosticSignHint', { text = '󰌵', texthl = 'DiagnosticSignHint' })
+      require('neo-tree').setup {
+        auto_close = true,
+        update_focused_file = {
+          enable = true,
+        },
+        window = {
+          width = 100,
+        },
+        event_handlers = {
+          {
+            event = 'file_opened',
+            handler = function()
+              -- auto close
+              require('neo-tree.command').execute { action = 'close' }
+            end,
+          },
+        },
+      }
     end,
   },
   -- abolish
@@ -141,6 +203,7 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>hC', '<cmd>LazyGitConfig<CR>', { desc = 'Open lazygit config' })
     end,
   },
+  { 'akinsho/toggleterm.nvim', version = '*', config = true },
   -- copilot, find copilot in this file to see where its configured in cmp
   {
     'zbirenbaum/copilot-cmp',
@@ -179,7 +242,7 @@ require('lazy').setup({
             vim.keymap.set(mode, l, r, opts)
           end
 
-          -- Navigation
+          -- Navigation between changes
           map('n', ']c', function()
             if vim.wo.diff then
               return ']c'
@@ -243,15 +306,17 @@ require('lazy').setup({
         ['<leader>h'] = { name = 'Git', _ = 'which_key_ignore' },
         ['<leader>t'] = { name = 'Toggle', _ = 'which_key_ignore' },
         -- mappings for abolish
-        ['cr'] = {
-          name = 'Change case w/ abolish',
-          c = 'camelCase',
-          p = 'PascalCase',
-          s = 'snake_case',
-          u = 'SNAKE_UPPERCASE',
-          k = 'kebab-case (not usually reversible)',
-          ['.'] = 'dot.case (not usually reversible)',
-        },
+        -- idk why this is ruining it
+        -- ['cr'] = {
+        --   _ = 'which_key_ignore',
+        --   name = 'Change case w/ abolish',
+        --   c = 'camelCase',
+        --   p = 'PascalCase',
+        --   s = 'snake_case',
+        --   u = 'SNAKE_UPPERCASE',
+        --   k = 'kebab-case (not usually reversible)',
+        --   ['.'] = 'dot.case (not usually reversible)',
+        -- },
       }
     end,
   },
@@ -296,7 +361,6 @@ require('lazy').setup({
               ['<c-k>'] = require('telescope.actions').move_selection_previous,
             },
             n = {
-              ['q'] = require('telescope.actions').delete_buffer,
               ['<c-p>'] = require('telescope.actions').cycle_history_prev,
               ['<c-n>'] = require('telescope.actions').cycle_history_next,
               ['<c-j>'] = require('telescope.actions').move_selection_next,
@@ -310,10 +374,18 @@ require('lazy').setup({
           path_display = {
             'truncate',
           },
+          cache_picker = {
+            num_pickers = 3,
+          },
         },
         pickers = {
           buffers = {
             sort_lastused = true,
+            mappings = {
+              n = {
+                ['q'] = require('telescope.actions').delete_buffer,
+              },
+            },
           },
         },
         extensions = {
@@ -415,6 +487,10 @@ require('lazy').setup({
           -- Fuzzy find all the symbols in your current workspace
           --  Similar to document symbols, except searches over your whole project.
           map('<leader>fs', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'search workspace symbols')
+
+          -- Fuzzy find all the symbols in your current workspace
+          --  Similar to document symbols, except searches over your whole project.
+          map('<leader>fp', require('telescope.builtin').pickers, 'Cached telescope pickers')
 
           -- Rename the variable under your cursor
           --  Most Language Servers support renaming across files, etc.
@@ -825,26 +901,36 @@ vim.keymap.set('n', '<leader>ne', [[:e ~/.config/nvim/init.lua<CR>]], { desc = '
 vim.keymap.set('n', '<leader>w', [[:wall<CR>]], { desc = 'Write all buffers' })
 vim.keymap.set('n', '<leader>q', [[:bdelete<CR>]], { desc = 'Close buffer' })
 -- set control p to write and closest
-vim.keymap.set('n', '<C-p>', [[:wqall<CR>]], { desc = 'Write and close' })
+vim.keymap.set('n', '<C-p>', [[:w<CR>:qall<CR>]], { desc = 'Write and close' })
 vim.keymap.set('n', '<leader>o', [[:Telescope find_files<CR>]], { desc = 'Find files' })
 -- or just do *?
-vim.keymap.set('v', '/', [[y/\V<C-R>=escape(@",'/\')<CR><CR>]], { desc = 'Search selected text' })
+-- vim.keymap.set('v', '/', [[y/\V<C-R>=escape(@",'/\')<CR><CR>]], { desc = 'Search selected text' })
 -- mouse wheel scroll speed
 vim.keymap.set('n', '<ScrollWheelUp>', '<C-y>', { desc = 'Scroll up' })
 vim.keymap.set('n', '<ScrollWheelDown>', '<C-e>', { desc = 'Scroll down' })
 vim.keymap.set('n', '<leader>nL', ':Lazy<CR>', { desc = 'Lazy plugin manager' })
 -- leader tab to switch to last buffer
-vim.keymap.set('n', '<leader><tab>', '<C-^>', { desc = 'Switch to last buffer' })
 -- can't do <tab> because it conflicts with <c-i>
-vim.api.nvim_create_autocmd('FocusLost', {
+vim.keymap.set('n', '<leader><tab>', '<C-^>', { desc = 'Switch to last buffer' })
+vim.api.nvim_create_autocmd({ 'FocusLost', 'WinLeave' }, {
   desc = 'Save when focus is lost',
   group = vim.api.nvim_create_augroup('kickstart-autosave', { clear = true }),
   callback = function()
     -- update all buffers
     vim.cmd [[wa]]
     -- write that we saved the buffers
-    vim.cmd [[echo "Buffers saved"]]
+    -- vim.cmd [[echo "Buffers saved"]]
   end,
 })
 vim.keymap.set('c', '<C-j>', '<C-n>', { desc = 'Move to next' })
 vim.keymap.set('c', '<C-k>', '<C-p>', { desc = 'Move to previous' })
+
+local Terminal = require('toggleterm.terminal').Terminal
+local lazygit = Terminal:new { cmd = 'lazygit', hidden = true, direction = 'float' }
+
+function Lazygit_toggle()
+  lazygit:toggle()
+end
+
+-- vim.keymap.set('n', '<leader>hG', '<cmd>lua Lazygit_toggle()<CR>', { desc = 'Open lazygit', silent = true })
+-- vim.keymap.set('n', '<leader>hC', '<cmd>e ~/.config/lazygit/config.yml<CR>', { desc = 'Open lazygit config' })
